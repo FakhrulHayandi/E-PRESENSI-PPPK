@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>PRESENSI PPPK - Rekap Harian & Bulanan</title>
+<style>
+  :root{--bg:#f4f6fb;--card:#fff;--accent:#c70000;--muted:#666;}
+  body{font-family:system-ui,Arial,Helvetica,sans-serif;margin:0;background:var(--bg);color:#111}
+  .wrap{max-width:1100px;margin:18px auto;padding:16px}
+  header{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  h1{margin:0;font-size:20px}
+  p.lead{margin:4px 0 12px;color:var(--muted)}
+  .card{background:var(--card);border-radius:10px;padding:12px;box-shadow:0 6px 18px rgba(0,0,0,0.06);margin-bottom:12px}
+  label{display:block;font-weight:600;margin-top:8px;font-size:13px}
+  input[type=text], select{width:100%;padding:10px;border-radius:8px;border:1px solid #ddd;box-sizing:border-box}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  button.btn{background:var(--accent);color:#fff;border:0;padding:10px 12px;border-radius:8px;cursor:pointer}
+  button.ghost{background:#fff;color:var(--accent);border:1px solid #eee}
+  .row{display:flex;gap:12px}
+  .col{flex:1}
+  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
+  th,td{border:1px solid #eee;padding:8px;text-align:center;vertical-align:middle}
+  thead th{background:#fafafa}
+  .photo-thumb{width:80px;height:80px;border-radius:6px;object-fit:cover;border:1px solid #ddd}
+  .small{font-size:12px;color:var(--muted)}
+  .flex-between{display:flex;justify-content:space-between;align-items:center}
+  .tabs{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+  .tab{padding:8px 12px;border-radius:8px;background:#fff;border:1px solid #eee;cursor:pointer}
+  .tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .action-btn{background:#fff;border:1px solid #eee;padding:6px 8px;border-radius:8px;cursor:pointer}
+  .delete-btn{background:#ff4d4d;color:white;border:none;padding:6px 8px;border-radius:8px;cursor:pointer}
+  td[contenteditable="true"]{background:#fffbea}
+  @media(max-width:900px){.row{flex-direction:column} .photo-thumb{width:60px;height:60px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div style="width:64px;height:64px;border-radius:12px;background:linear-gradient(135deg,#fff,#ffecec);display:flex;align-items:center;justify-content:center;border:2px solid var(--accent)"><strong style="color:var(--accent)">PPPK</strong></div>
+    <div style="flex:1">
+      <h1>PRESENSI PPPK</h1>
+      <p class="lead">Fitur lengkap: selfie (thumbnail 200×200), GPS, rekap harian & bulanan, ekspor CSV/JSON. Upload ke GitHub Pages untuk akses HTTPS.</p>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="flex-between"><div><strong>Form Presensi</strong><div class="small">Isi Nama & NIP lalu tekan Absen. Kamera otomatis akan diminta.</div></div><div class="small">Jam masuk limit: <strong>07:30 WIB</strong></div></div>
+
+    <label>Nama Pegawai</label>
+    <input id="nama" type="text" placeholder="Masukkan nama" autocomplete="off">
+
+    <label>NIP</label>
+    <input id="nip" type="text" placeholder="Masukkan NIP" autocomplete="off">
+
+    <label>Status Kehadiran</label>
+    <select id="status">
+      <option value="Hadir">Hadir</option>
+      <option value="Izin">Izin</option>
+      <option value="Sakit">Sakit</option>
+      <option value="Alpha">Alpha</option>
+    </select>
+
+    <div class="small" style="margin-top:6px">Saat absen, browser akan meminta izin kamera & lokasi. Foto disimpan kecil agar hemat storage.</div>
+
+    <div class="controls">
+      <button class="btn" id="btnMasuk">📸 Absen Masuk</button>
+      <button class="btn" id="btnPulang">🏁 Absen Pulang</button>
+      <button class="btn ghost" id="btnCSV">⬇️ Unduh CSV (Semua Data)</button>
+      <button class="btn ghost" id="btnJSON">⬇️ Unduh JSON</button>
+      <button class="btn ghost" id="btnReset">🗑 Reset Semua Data</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="flex-between"><strong>Preview Kamera</strong><div class="small">Jika perangkat mendukung, kamera akan muncul saat absen. Jika tidak, foto tidak tersimpan.</div></div>
+    <div class="row" style="align-items:center">
+      <div class="col">
+        <video id="video" autoplay playsinline style="width:100%;max-height:320px;border-radius:8px;background:#000"></video>
+      </div>
+      <div style="width:140px;text-align:center">
+        <canvas id="canvas" style="display:none"></canvas>
+        <img id="lastPhoto" class="photo-thumb" alt="-" />
+        <div class="small" style="margin-top:6px">Terakhir foto</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="tabs" id="tabs">
+      <div class="tab active" data-tab="harian">Rekap Harian</div>
+      <div class="tab" data-tab="bulanan">Rekap Bulanan</div>
+    </div>
+
+    <div id="panel-harian">
+      <div class="flex-between"><strong>Rekap Harian</strong><div class="small">Tabel detail per tanggal. Edit keterangan & hapus baris.</div></div>
+      <table id="tabelPresensi">
+        <thead><tr><th>No</th><th>Foto</th><th>Nama</th><th>NIP</th><th>Tanggal</th><th>Jam Masuk</th><th>Jam Pulang</th><th>Lokasi</th><th>Keterangan</th><th>Status</th><th>Aksi</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div style="margin-top:8px" class="small">Gunakan tombol ekspor CSV untuk mengunduh semua data.</div>
+    </div>
+
+    <div id="panel-bulanan" style="display:none">
+      <div class="flex-between"><strong>Rekap Bulanan</strong><div class="small">Ringkasan per bulan per pegawai. Hapus grup rekap akan menghapus semua entri pada bulan itu.</div></div>
+      <table id="tabelRekap">
+        <thead><tr><th>No</th><th>Nama</th><th>NIP</th><th>Bulan</th><th>Total Entri</th><th>Hadir</th><th>Terlambat</th><th>Izin</th><th>Sakit</th><th>Alpha</th><th>% Kehadiran</th><th>Aksi</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div style="margin-top:8px" class="small">Klik "Hapus" pada baris untuk menghapus semua entri yang termasuk dalam rekap tersebut.</div>
+    </div>
+  </div>
+
+  <div style="text-align:center;margin-top:6px" class="small">File siap diunggah ke GitHub Pages (HTTPS diperlukan agar kamera & lokasi berfungsi).</div>
+</div>
+
+<script>
+// config
+const STORAGE_KEY = 'presensi_pppk_rekap_v1';
+const THUMB = 200;
+const LIMIT_H = 7, LIMIT_M = 30;
+
+// load data
+let presensi = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+
+// elements
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const lastPhoto = document.getElementById('lastPhoto');
+let stream = null;
+
+// start camera proactively to prompt permission
+async function startCamera(){
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "user" } }, audio:false });
+    video.srcObject = stream;
+  }catch(e){
+    console.warn('camera start failed', e);
+  }
+}
+// do not throw if fails
+startCamera();
+
+function stopCamera(){ try{ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; video.srcObject=null; } }catch(e){} }
+
+function takeThumb(){
+  try{
+    const vw = video.videoWidth || 640;
+    const vh = video.videoHeight || 480;
+    const size = THUMB;
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const scale = Math.max(size / vw, size / vh);
+    const sw = Math.round(size / scale);
+    const sh = Math.round(size / scale);
+    const sx = Math.round((vw - sw)/2);
+    const sy = Math.round((vh - sh)/2);
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, size, size);
+    return canvas.toDataURL('image/jpeg', 0.75);
+  }catch(e){
+    console.warn('takeThumb fail', e);
+    return null;
+  }
+}
+
+function getLocation(timeout=8000){
+  return new Promise(resolve=>{
+    if(!navigator.geolocation) return resolve({ok:false, message:'Geolocation not supported'});
+    navigator.geolocation.getCurrentPosition(pos=>{ resolve({ok:true, lat:pos.coords.latitude, lon:pos.coords.longitude, acc:pos.coords.accuracy}); }, err=>{ resolve({ok:false, message: err.message || 'location denied'}); }, {enableHighAccuracy:true, timeout}); 
+  });
+}
+
+function now(){ return new Date(); }
+function fmtDate(d){ return d.toLocaleDateString('id-ID'); }
+function fmtTime(d){ return d.toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
+function isLate(d){ const hh=d.getHours(), mm=d.getMinutes(); if(hh>LIMIT_H) return true; if(hh===LIMIT_H && mm>LIMIT_M) return true; return false; }
+
+// render table harian
+function renderTable(){
+  const tbody = document.querySelector('#tabelPresensi tbody');
+  tbody.innerHTML='';
+  presensi.forEach((p,i)=>{
+    const tr = document.createElement('tr'); tr.dataset.idx = i;
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td><img src="${p.photo||''}" class="photo-thumb" alt=""></td>
+      <td>${escapeHtml(p.nama)}</td>
+      <td>${escapeHtml(p.nip)}</td>
+      <td>${p.tanggal}</td>
+      <td>${p.jamMasuk||''}</td>
+      <td>${p.jamPulang||''}</td>
+      <td>${p.lat? '<a target="_blank" class="small map-link" href="https://www.google.com/maps?q='+p.lat+','+p.lon+'">Lihat</a>':''}</td>
+      <td contenteditable="true" data-field="keterangan">${escapeHtml(p.keterangan||'')}</td>
+      <td>${escapeHtml(p.status)}</td>
+      <td><button class="delete-btn" data-action="delete">Hapus</button></td>`;
+    tbody.appendChild(tr);
+  });
+  // editable keterangan save on blur
+  tbody.querySelectorAll('td[contenteditable="true"]').forEach(td=>{
+    td.addEventListener('blur', ()=>{
+      const tr = td.closest('tr'); const idx = Number(tr.dataset.idx);
+      presensi[idx].keterangan = td.innerText.trim(); saveAll();
+    });
+  });
+  // delete row
+  tbody.querySelectorAll('button[data-action="delete"]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const tr = btn.closest('tr'); const idx = Number(tr.dataset.idx);
+      if(confirm('Hapus entri ini?')){ presensi.splice(idx,1); saveAll(); renderTable(); renderRekap(); }
+    });
+  });
+  if(presensi.length>0) lastPhoto.src = presensi[presensi.length-1].photo || '';
+}
+
+// render rekap bulanan
+function renderRekap(){
+  const map = {}; // key: nama|nip|mm-yyyy
+  presensi.forEach(p=>{
+    const parts = p.tanggal.split('/'); // dd/mm/yyyy
+    const bulan = parts[1] + '-' + parts[2];
+    const key = p.nama + '|' + p.nip + '|' + bulan;
+    if(!map[key]) map[key] = {nama:p.nama, nip:p.nip, bulan:bulan, entries:[], Hadir:0, Terlambat:0, Izin:0, Sakit:0, Alpha:0};
+    map[key].entries.push(p);
+    const s = p.status || '';
+    if(s==='Hadir') map[key].Hadir++;
+    else if(s==='Terlambat') map[key].Terlambat++;
+    else if(s==='Izin') map[key].Izin++;
+    else if(s==='Sakit') map[key].Sakit++;
+    else if(s==='Alpha') map[key].Alpha++;
+  });
+  const tbody = document.querySelector('#tabelRekap tbody'); tbody.innerHTML='';
+  let i=1;
+  for(const k in map){
+    const r = map[k];
+    const total = r.entries.length;
+    const hadir = r.Hadir + r.Terlambat; // treat terlambat as hadir for presence count
+    const persen = total? Math.round((hadir/total)*100) : 0;
+    const tr = document.createElement('tr');
+    tr.dataset.key = k;
+    tr.innerHTML = `<td>${i++}</td><td>${escapeHtml(r.nama)}</td><td>${escapeHtml(r.nip)}</td><td>${r.bulan}</td><td>${total}</td><td>${hadir}</td><td>${r.Terlambat}</td><td>${r.Izin}</td><td>${r.Sakit}</td><td>${r.Alpha}</td><td>${persen}%</td><td><button class="delete-btn" data-action="delgroup">Hapus</button></td>`;
+    tbody.appendChild(tr);
+  }
+  // attach delete group handlers
+  tbody.querySelectorAll('button[data-action="delgroup"]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const tr = btn.closest('tr'); const key = tr.dataset.key;
+      if(confirm('Hapus semua entri untuk rekap ini?')){
+        const [nama, nip, bulan] = key.split('|');
+        presensi = presensi.filter(p=>{
+          const parts = p.tanggal.split('/'); const b = parts[1]+'-'+parts[2];
+          return !(p.nama===nama && p.nip===nip && b===bulan);
+        });
+        saveAll(); renderTable(); renderRekap();
+      }
+    });
+  });
+}
+
+// helpers
+function escapeHtml(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function saveAll(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(presensi)); renderTable(); renderRekap(); }
+function pad(n){ return n.toString().padStart(2,'0'); }
+function q(s){ if(s==null) return '""'; return '"' + String(s).replace(/"/g,'""') + '"'; }
+function download(content, filename, mime){ const blob = new Blob([content], {type:mime}); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1500); }
+
+// actions: Absen Masuk
+document.getElementById('btnMasuk').addEventListener('click', async ()=>{
+  const nama = document.getElementById('nama').value.trim(); const nip = document.getElementById('nip').value.trim();
+  const statusSel = document.getElementById('status').value;
+  if(!nama||!nip){ alert('Nama & NIP wajib diisi'); return; }
+
+  if(!stream) await startCamera();
+  await new Promise(r=>setTimeout(r,250));
+  const photo = stream ? takeThumb() : null;
+  const loc = await getLocation();
+  const d = now(); const tanggal = fmtDate(d); const jam = fmtTime(d);
+  const late = isLate(d); const finalStatus = (statusSel==='Hadir' && late)? 'Terlambat' : statusSel;
+  const keterangan = late? ('Masuk lewat '+pad(LIMIT_H)+':'+pad(LIMIT_M)) : '';
+
+  presensi.push({ nama, nip, tanggal, jamMasuk:jam, jamPulang:'', keterangan, status:finalStatus, photo, lat: loc.ok?loc.lat:null, lon: loc.ok?loc.lon:null });
+  saveAll();
+  stopCamera(); document.getElementById('nama').value=''; document.getElementById('nip').value=''; document.getElementById('nama').focus();
+});
+
+// actions: Absen Pulang
+document.getElementById('btnPulang').addEventListener('click', async ()=>{
+  const nama = document.getElementById('nama').value.trim(); const nip = document.getElementById('nip').value.trim();
+  if(!nama||!nip){ alert('Nama & NIP wajib diisi untuk absen pulang'); return; }
+  const today = fmtDate(now()); const idx = presensi.findIndex(p=>p.nama===nama && p.nip===nip && p.tanggal===today);
+  if(idx===-1){ alert('Tidak ditemukan entri masuk untuk hari ini'); return; }
+
+  if(!stream) await startCamera();
+  await new Promise(r=>setTimeout(r,250));
+  const photo = stream ? takeThumb() : null;
+  const loc = await getLocation();
+  const jam = fmtTime(now());
+  presensi[idx].jamPulang = jam; presensi[idx].photoPulang = photo; presensi[idx].latPulang = loc.ok?loc.lat:null; presensi[idx].lonPulang = loc.ok?loc.lon:null;
+  saveAll();
+  stopCamera(); document.getElementById('nama').value=''; document.getElementById('nip').value=''; document.getElementById('nama').focus();
+});
+
+// delete all
+document.getElementById('btnReset').addEventListener('click', ()=>{ if(confirm('Hapus semua data presensi?')){ presensi=[]; saveAll(); localStorage.removeItem(STORAGE_KEY); } });
+
+// CSV export (all data)
+document.getElementById('btnCSV').addEventListener('click', ()=>{
+  let csv = 'No,Nama,NIP,Tanggal,JamMasuk,JamPulang,Keterangan,Status,PhotoDataURL,Lat,Lon\n';
+  presensi.forEach((p,i)=>{
+    csv += [i+1, q(p.nama), q(p.nip), p.tanggal, p.jamMasuk||'', p.jamPulang||'', q(p.keterangan||''), q(p.status||''), q(p.photo||''), p.lat||'', p.lon||''].join(',') + '\n';
+  });
+  download(csv, 'Presensi_PPPK_All.csv', 'text/csv;charset=utf-8;');
+});
+
+// JSON export
+document.getElementById('btnJSON').addEventListener('click', ()=>{ download(JSON.stringify(presensi,null,2), 'Presensi_PPPK.json', 'application/json'); });
+
+// tabs
+document.querySelectorAll('.tab').forEach(t=> t.addEventListener('click', ()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  const tab = t.dataset.tab;
+  document.getElementById('panel-harian').style.display = tab==='harian' ? 'block' : 'none';
+  document.getElementById('panel-bulanan').style.display = tab==='bulanan' ? 'block' : 'none';
+  if(tab==='bulanan') renderRekap();
+}));
+
+// helpers used earlier
+function now(){ return new Date(); }
+function fmtDate(d){ return d.toLocaleDateString('id-ID'); }
+function fmtTime(d){ return d.toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
+function isLate(d){ const hh=d.getHours(), mm=d.getMinutes(); if(hh>LIMIT_H) return true; if(hh===LIMIT_H && mm>LIMIT_M) return true; return false; }
+async function getLocation(timeout=8000){ return new Promise(resolve=>{ if(!navigator.geolocation) return resolve({ok:false, message:'Geolocation not supported'}); navigator.geolocation.getCurrentPosition(pos=> resolve({ok:true, lat:pos.coords.latitude, lon:pos.coords.longitude, acc:pos.coords.accuracy}), err=> resolve({ok:false, message: err.message||'location denied'}), {enableHighAccuracy:true, timeout}); }); }
+
+// init UI
+renderTable(); renderRekap();
+if(presensi.length>0) lastPhoto.src = presensi[presensi.length-1].photo || '';
+
+// autofocus enter
+document.getElementById('nama').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('nip').focus(); });
+document.getElementById('nip').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('btnMasuk').click(); });
+</script>
+</body>
+</html>
